@@ -1,7 +1,5 @@
 # OpenEx
 
-**Current flow**
-
 # OpenEx System Flow
 
 ## **Overview**
