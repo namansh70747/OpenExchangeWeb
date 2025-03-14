@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 var db *gorm.DB
@@ -30,39 +30,40 @@ type User struct {
 }
 
 type Hostel struct {
-	ID        uint      `gorm:"primaryKey"`
-	Name      string    `gorm:"unique;not null"`
+	ID        uint   `gorm:"primaryKey"`
+	Name      string `gorm:"unique;not null"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
 type Item struct {
-	ID          uint      `gorm:"primaryKey"`
-	UserID      uint      `gorm:"not null"`
-	User        User      `gorm:"foreignKey:UserID"`
-	HostelID    uint      `gorm:"not null"`
-	Hostel      Hostel    `gorm:"foreignKey:HostelID"`
-	Title       string    `gorm:"not null"`
-	Description string    `gorm:"not null"`
+	ID          uint   `gorm:"primaryKey"`
+	UserID      uint   `gorm:"not null"`
+	User        User   `gorm:"foreignKey:UserID"`
+	HostelID    uint   `gorm:"not null"`
+	Hostel      Hostel `gorm:"foreignKey:HostelID"`
+	Title       string `gorm:"not null"`
+	Description string `gorm:"not null"`
 	Price       float64
-	Status      string    `gorm:"default:'pending'"`
-	Type        string    `gorm:"not null"`
+	Image       string 
+	Status      string `gorm:"default:'pending'"`
+	Type        string `gorm:"not null"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
 
 type TransactionRequest struct {
-	ID            uint      `gorm:"primaryKey"`
-	BuyerID       uint      `gorm:"not null"`
-	Buyer         User      `gorm:"foreignKey:BuyerID"`
-	SellerID      uint      `gorm:"not null"`
-	Seller        User      `gorm:"foreignKey:SellerID"`
-	ItemID        uint      `gorm:"not null"`
-	Item          Item      `gorm:"foreignKey:ItemID"`
+	ID            uint `gorm:"primaryKey"`
+	BuyerID       uint `gorm:"not null"`
+	Buyer         User `gorm:"foreignKey:BuyerID"`
+	SellerID      uint `gorm:"not null"`
+	Seller        User `gorm:"foreignKey:SellerID"`
+	ItemID        uint `gorm:"not null"`
+	Item          Item `gorm:"foreignKey:ItemID"`
 	OfferedItemID *uint
-	OfferedItem   Item      `gorm:"foreignKey:OfferedItemID"`
-	Status        string    `gorm:"default:'pending'"`
-	Type          string    `gorm:"not null"`
+	OfferedItem   Item   `gorm:"foreignKey:OfferedItemID"`
+	Status        string `gorm:"default:'pending'"`
+	Type          string `gorm:"not null"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
@@ -83,6 +84,17 @@ func main() {
 	}
 
 	db.AutoMigrate(&User{}, &Hostel{}, &Item{}, &TransactionRequest{})
+	
+	// Check if any hostels exist, if not, create FRF hostel
+	var hostelCount int64
+	db.Model(&Hostel{}).Count(&hostelCount)
+	if hostelCount == 0 {
+		defaultHostel := Hostel{
+			Name: "FRF",
+		}
+		db.Create(&defaultHostel)
+		fmt.Println("Created default hostel: FRF")
+	}
 
 	// Set up router
 	r := gin.Default()
@@ -111,6 +123,7 @@ func main() {
 		admin.GET("/items", listPendingItems)
 		admin.PATCH("/items/:id/approve", approveItem)
 		admin.PATCH("/items/:id/reject", rejectItem)
+		admin.POST("/hostels", createHostel) 
 	}
 
 	r.Run(":8080")
@@ -261,6 +274,7 @@ func createItem(c *gin.Context) {
 		Title       string  `json:"title" binding:"required"`
 		Description string  `json:"description" binding:"required"`
 		Price       float64 `json:"price"`
+		Image       string  `json:"image"`
 		Type        string  `json:"type" binding:"required,oneof=sell exchange"`
 	}
 
@@ -276,6 +290,7 @@ func createItem(c *gin.Context) {
 		Title:       req.Title,
 		Description: req.Description,
 		Price:       req.Price,
+		Image:       req.Image,
 		Type:        req.Type,
 	}
 
@@ -309,8 +324,8 @@ func createRequest(c *gin.Context) {
 	user := c.MustGet("user").(User)
 
 	type Request struct {
-		ItemID        uint  `json:"item_id" binding:"required"`
-		OfferedItemID *uint `json:"offered_item_id"`
+		ItemID        uint   `json:"item_id" binding:"required"`
+		OfferedItemID *uint  `json:"offered_item_id"`
 		Type          string `json:"type" binding:"required,oneof=buy exchange"`
 	}
 
@@ -376,4 +391,31 @@ func getItem(c *gin.Context) {
 	var item Item
 	db.First(&item, c.Param("id"))
 	c.JSON(http.StatusOK, item)
+}
+
+// Add this new handler function
+func createHostel(c *gin.Context) {
+	type HostelRequest struct {
+		Name string `json:"name" binding:"required"`
+	}
+	
+	var req HostelRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	
+	// Check if hostel with same name already exists
+	var existingHostel Hostel
+	if db.Where("name = ?", req.Name).First(&existingHostel).RowsAffected > 0 {
+		c.JSON(http.StatusConflict, gin.H{"error": "Hostel with this name already exists"})
+		return
+	}
+	
+	hostel := Hostel{
+		Name: req.Name,
+	}
+	
+	db.Create(&hostel)
+	c.JSON(http.StatusCreated, hostel)
 }
