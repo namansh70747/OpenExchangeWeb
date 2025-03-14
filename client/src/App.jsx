@@ -1,28 +1,31 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import {Navigate,  BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import Welcome from './pages/Welcome';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import HostelSelection from './pages/HostelSelection';
 import ItemListings from './pages/ItemListings';
 import BuySellRent from './pages/BuySellRent';
 import ContactUs from './pages/ContactUs';
+import Compiler from './Components/Compiler';
+import AdminLogin from './pages/AdminLogin';
 
 function App() {
   return (
     <Router>
-      <Navbar />
       <Routes>
-        <Route path="/" element={<Welcome />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/hostel-selection" element={<HostelSelection />} />
-        <Route path="/item-listings" element={<ItemListings />} />
-        <Route path="/buy-sell-rent" element={<BuySellRent />} />
-        <Route path="/contact-us" element={<ContactUs />} />
+      <Route path='/' element={<Navigate to="/Login" replace />} />
+        <Route path='/Login' element={<Login />}></Route>
+        <Route path='/Signup' element={<Signup/>}></Route>
+        <Route path='/admin' element={<AdminLogin/>}></Route>
+
+        <Route path='/App' element={<Compiler />}>
+        <Route path='*' element={<Navigate to="/Login" replace />} />
+          
+          {/* <Route path='Contact' element={<Contact />} /> */}
+        </Route>
       </Routes>
-      <Footer />
+
     </Router>
   );
 }
